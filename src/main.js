@@ -1,4 +1,4 @@
-import { fpsRun } from './fpsHandler.js';
+// import { fpsRun } from './fpsHandler.js';
 
 const canvas = document.getElementById('canvas');
 const fps = document.getElementById('fps');
@@ -8,12 +8,16 @@ let ballsArray = [];
 
 let left, up, right, down;
 
-let friction = 0.1;
+let friction = 0.05;
 
 function round(value, precision) {
 	let factor = 10 ** precision;
 
 	return Math.round(value * factor) / factor;
+}
+
+function randomInt(min, max) {
+	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 class Vector {
@@ -65,13 +69,20 @@ class Vector {
 }
 
 class Ball {
-	constructor(x, y, radius) {
+	constructor(x, y, radius, mass) {
 		this.position = new Vector(x, y);
 		this.radius = radius;
+		this.mass = mass;
+		if (this.mass === 0) {
+			this.inverseMass = 0;
+		} else {
+			this.inverseMass = 1 / this.mass;
+		}
+		this.elasticity = 1;
 
 		this.accelerationVector = new Vector(0, 0);
 		this.velocityVector = new Vector(0, 0);
-		this.acceleration = 0.8;
+		this.acceleration = 0.5;
 
 		this.player = false;
 		ballsArray.push(this);
@@ -91,6 +102,18 @@ class Ball {
 		context.arc(700, 700, 50, 0, Math.PI * 2);
 		context.strokeStyle = 'white';
 		context.stroke();
+	}
+
+	reposition() {
+		this.accelerationVector = this.accelerationVector
+			.unit()
+			.multiply(this.acceleration);
+
+		this.velocityVector = this.velocityVector.add(this.accelerationVector);
+
+		this.velocityVector = this.velocityVector.multiply(1 - friction);
+
+		this.position = this.position.add(this.velocityVector);
 	}
 }
 
@@ -143,16 +166,6 @@ function controller(ball) {
 	if (!right && !left) {
 		ball.accelerationVector.x = 0;
 	}
-
-	ball.accelerationVector = ball.accelerationVector
-		.unit()
-		.multiply(ball.acceleration);
-
-	ball.velocityVector = ball.velocityVector.add(ball.accelerationVector);
-
-	ball.velocityVector = ball.velocityVector.multiply(1 - friction);
-
-	ball.position = ball.position.add(ball.velocityVector);
 }
 
 function ballsCollision(ball1, ball2) {
@@ -167,9 +180,41 @@ function ballsCollision(ball1, ball2) {
 function ballsPenetrationResolution(ball1, ball2) {
 	let distancie = ball1.position.subtract(ball2.position);
 	let penetrationDepth = ball1.radius + ball2.radius - distancie.magnitude();
-	let penetrationResolution = distancie.unit().multiply(penetrationDepth / 2);
-	ball1.position = ball1.position.add(penetrationResolution);
-	ball2.position = ball2.position.add(penetrationResolution.multiply(-1));
+	let penetrationResolution = distancie
+		.unit()
+		.multiply(penetrationDepth / (ball1.inverseMass + ball2.inverseMass));
+
+	ball1.position = ball1.position.add(
+		penetrationResolution.multiply(ball1.inverseMass)
+	);
+	ball2.position = ball2.position.add(
+		penetrationResolution.multiply(-ball2.inverseMass)
+	);
+}
+
+function BallsCollisionResolution(ball1, ball2) {
+	let normal = ball1.position.subtract(ball2.position).unit();
+	let relativeVelocity = ball1.velocityVector.subtract(ball2.velocityVector);
+	let sepVelocity = Vector.dot(relativeVelocity, normal);
+	let newSepVelocity =
+		-sepVelocity * Math.min(ball1.elasticity, ball2.elasticity);
+
+	let sepVelocityDiference = newSepVelocity - sepVelocity;
+	let impulse = sepVelocityDiference / (ball1.inverseMass + ball2.inverseMass);
+	let impulseVector = normal.multiply(impulse);
+
+	ball1.velocityVector = ball1.velocityVector.add(
+		impulseVector.multiply(ball1.inverseMass)
+	);
+	ball2.velocityVector = ball2.velocityVector.add(
+		impulseVector.multiply(-ball2.inverseMass)
+	);
+}
+
+function momentumDisplay() {
+	let momentum = ball1.velocityVector.add(ball2.velocityVector).magnitude();
+	context.fillStyle = 'white';
+	context.fillText('Momentum: ' + round(momentum, 3), 400, 50);
 }
 
 function update() {
@@ -183,21 +228,30 @@ function update() {
 		for (let i = index + 1; i < ballsArray.length; i++) {
 			if (ballsCollision(ballsArray[index], ballsArray[i])) {
 				ballsPenetrationResolution(ballsArray[index], ballsArray[i]);
+				BallsCollisionResolution(ballsArray[index], ballsArray[i]);
 			}
 		}
 
+		ball.reposition();
 		ball.display();
 	});
-	fpsRun(fps);
+	// fpsRun(fps);
+
+	// momentumDisplay();
 
 	requestAnimationFrame(update);
 }
 
-let ball1 = new Ball(200, 200, 20);
-let ball2 = new Ball(500, 500, 40);
-let ball3 = new Ball(501, 500, 40);
-let ball4 = new Ball(500, 510, 40);
-let ball5 = new Ball(502, 503, 40);
-ball1.player = true;
+for (let i = 0; i < 10; i++) {
+	let newBall = new Ball(
+		randomInt(100, 700),
+		randomInt(100, 700),
+		randomInt(20, 50),
+		randomInt(0, 10)
+	);
+	newBall.elasticity = randomInt(0, 10) / 10;
+}
+
+ballsArray[0].player = true;
 
 update();
