@@ -14,5 +14,5 @@ export function fpsRun(fps) {
 	} else {
 		counter++;
 	}
-	fps.innerHTML = 'FPS: ' + fpsNumber;
+	return (fps.innerHTML = 'FPS: ' + fpsNumber);
 }
