@@ -5,6 +5,7 @@ const fps = document.getElementById('fps');
 const context = canvas.getContext('2d');
 
 let ballsArray = [];
+let wallsArray = [];
 
 let left, up, right, down;
 
@@ -93,15 +94,30 @@ class Ball {
 		context.arc(this.position.x, this.position.y, this.radius, 0, Math.PI * 2);
 		context.strokeStyle = 'white';
 		context.stroke();
+
+		if (this.mass === 0) {
+			context.beginPath();
+			context.arc(
+				this.position.x,
+				this.position.y,
+				this.radius * 0.2,
+				0,
+				Math.PI * 2
+			);
+			context.strokeStyle = 'white';
+			context.stroke();
+		}
 	}
 
 	display() {
-		this.velocityVector.drawVector(700, 700, 10, 'red');
-		this.accelerationVector.unit().drawVector(700, 700, 50, 'blue');
-		context.beginPath();
-		context.arc(700, 700, 50, 0, Math.PI * 2);
-		context.strokeStyle = 'white';
-		context.stroke();
+		this.velocityVector.drawVector(this.position.x, this.position.y, 10, 'red');
+		this.accelerationVector
+			.unit()
+			.drawVector(this.position.x, this.position.y, 50, 'blue');
+		// context.beginPath();
+		// context.arc(700, 700, 50, 0, Math.PI * 2);
+		// context.strokeStyle = 'white';
+		// context.stroke();
 	}
 
 	reposition() {
@@ -114,6 +130,26 @@ class Ball {
 		this.velocityVector = this.velocityVector.multiply(1 - friction);
 
 		this.position = this.position.add(this.velocityVector);
+	}
+}
+
+class Wall {
+	constructor(x1, y1, x2, y2) {
+		this.start = new Vector(x1, y1);
+		this.end = new Vector(x2, y2);
+		wallsArray.push(this);
+	}
+
+	drawWall() {
+		context.beginPath();
+		context.moveTo(this.start.x, this.start.y);
+		context.lineTo(this.end.x, this.end.y);
+		context.strokeStyle = 'white';
+		context.stroke();
+	}
+
+	wallUnit() {
+		return this.end.subtract(this.start).unit();
 	}
 }
 
@@ -168,6 +204,31 @@ function controller(ball) {
 	}
 }
 
+function closestPointBallAndWall(ball, wall) {
+	let ballToWallStart = wall.start.subtract(ball.position);
+	if (Vector.dot(wall.wallUnit(), ballToWallStart) > 0) {
+		return wall.start;
+	}
+
+	let wallEndToBall = ball.position.subtract(wall.end);
+	if (Vector.dot(wall.wallUnit(), wallEndToBall) > 0) {
+		return wall.end;
+	}
+
+	let closestDistance = Vector.dot(wall.wallUnit(), ballToWallStart);
+	let closestVector = wall.wallUnit().multiply(closestDistance);
+	return wall.start.subtract(closestVector);
+}
+
+function ballCollisionWithWall(ball, wall) {
+	let ballToClosest = closestPointBallAndWall(ball, wall).subtract(
+		ball.position
+	);
+	if (ballToClosest.magnitude() < ball.radius) {
+		return true;
+	}
+}
+
 function ballsCollision(ball1, ball2) {
 	if (
 		ball1.radius + ball2.radius >=
@@ -175,6 +236,18 @@ function ballsCollision(ball1, ball2) {
 	) {
 		return true;
 	} else return false;
+}
+
+function wallPenetrationResolution(ball, wall) {
+	let penetrationVector = ball.position.subtract(
+		closestPointBallAndWall(ball, wall)
+	);
+
+	ball.position = ball.position.add(
+		penetrationVector
+			.unit()
+			.multiply(ball.radius - penetrationVector.magnitude())
+	);
 }
 
 function ballsPenetrationResolution(ball1, ball2) {
@@ -192,7 +265,20 @@ function ballsPenetrationResolution(ball1, ball2) {
 	);
 }
 
-function BallsCollisionResolution(ball1, ball2) {
+function wallCollisionResolution(ball, wall) {
+	let normal = ball.position
+		.subtract(closestPointBallAndWall(ball, wall))
+		.unit();
+	let separateVelocity = Vector.dot(ball.velocityVector, normal);
+	let newSeparateVelocity = -separateVelocity * ball.elasticity;
+	let vectorSeparateDifference = separateVelocity - newSeparateVelocity;
+
+	ball.velocityVector = ball.velocityVector.add(
+		normal.multiply(-vectorSeparateDifference)
+	);
+}
+
+function ballsCollisionResolution(ball1, ball2) {
 	let normal = ball1.position.subtract(ball2.position).unit();
 	let relativeVelocity = ball1.velocityVector.subtract(ball2.velocityVector);
 	let sepVelocity = Vector.dot(relativeVelocity, normal);
@@ -225,10 +311,17 @@ function update() {
 			controller(ball);
 		}
 
+		wallsArray.forEach((wall) => {
+			if (ballCollisionWithWall(ballsArray[index], wall)) {
+				wallPenetrationResolution(ballsArray[index], wall);
+				wallCollisionResolution(ballsArray[index], wall);
+			}
+		});
+
 		for (let i = index + 1; i < ballsArray.length; i++) {
 			if (ballsCollision(ballsArray[index], ballsArray[i])) {
 				ballsPenetrationResolution(ballsArray[index], ballsArray[i]);
-				BallsCollisionResolution(ballsArray[index], ballsArray[i]);
+				ballsCollisionResolution(ballsArray[index], ballsArray[i]);
 			}
 		}
 
@@ -238,6 +331,10 @@ function update() {
 	// fpsRun(fps);
 
 	// momentumDisplay();
+
+	wallsArray.forEach((wall, index) => {
+		wall.drawWall();
+	});
 
 	requestAnimationFrame(update);
 }
@@ -251,6 +348,24 @@ for (let i = 0; i < 10; i++) {
 	);
 	newBall.elasticity = randomInt(0, 10) / 10;
 }
+
+let wall1 = new Wall(200, 200, 500, 500);
+let wall2 = new Wall(500, 500, 800, 500);
+
+let edgeLeft = new Wall(0, 0, 0, canvas.clientHeight);
+let edgeRight = new Wall(
+	canvas.clientWidth,
+	0,
+	canvas.clientHeight,
+	canvas.clientHeight
+);
+let edgeTop = new Wall(0, 0, canvas.clientWidth, 0);
+let edgeBottom = new Wall(
+	0,
+	canvas.clientWidth,
+	canvas.clientHeight,
+	canvas.clientHeight
+);
 
 ballsArray[0].player = true;
 
