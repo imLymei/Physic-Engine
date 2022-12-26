@@ -4,12 +4,50 @@ const canvas = document.getElementById('canvas');
 const fps = document.getElementById('fps');
 const context = canvas.getContext('2d');
 
+let clickPoints = 0;
+let clickPointsPosition = [];
+
 let ballsArray = [];
 let wallsArray = [];
 
 let left, up, right, down;
 
 let friction = 0.05;
+
+canvas.addEventListener('click', (e) => {
+	clickPoints++;
+
+	clickPointsPosition.push(e.x - e.target.offsetLeft, e.y - e.target.offsetTop);
+
+	if (clickPoints === 2) {
+		clickPoints = 0;
+
+		if (
+			clickPointsPosition[0] != clickPointsPosition[2] &&
+			clickPointsPosition[1] != clickPointsPosition[3]
+		) {
+			let newWall = new Wall(
+				clickPointsPosition[0],
+				clickPointsPosition[1],
+				clickPointsPosition[2],
+				clickPointsPosition[3]
+			);
+		}
+
+		clickPointsPosition = [];
+	}
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+	e.preventDefault();
+	let newBall = new Ball(
+		e.x - e.target.offsetLeft,
+		e.y - e.target.offsetTop,
+		randomInt(10, 40),
+		randomInt(0, 10)
+	);
+	newBall.elasticity = randomInt(0, 10) / 10;
+});
 
 function round(value, precision) {
 	let factor = 10 ** precision;
@@ -68,6 +106,8 @@ class Vector {
 		context.stroke();
 	}
 }
+
+let gravityVector = new Vector(0, 0.3);
 
 class Ball {
 	constructor(x, y, radius, mass) {
@@ -128,6 +168,7 @@ class Ball {
 		this.velocityVector = this.velocityVector.add(this.accelerationVector);
 
 		this.velocityVector = this.velocityVector.multiply(1 - friction);
+		// this.velocityVector = this.velocityVector.add(gravityVector);
 
 		this.position = this.position.add(this.velocityVector);
 	}
@@ -185,16 +226,16 @@ function controller(ball) {
 	});
 
 	if (left) {
-		ball.accelerationVector.x = -ball.acceleration;
+		ball.accelerationVector.x -= ball.acceleration;
 	}
 	if (right) {
-		ball.accelerationVector.x = ball.acceleration;
+		ball.accelerationVector.x += ball.acceleration;
 	}
 	if (up) {
-		ball.accelerationVector.y = -ball.acceleration;
+		ball.accelerationVector.y -= ball.acceleration;
 	}
 	if (down) {
-		ball.accelerationVector.y = ball.acceleration;
+		ball.accelerationVector.y += ball.acceleration;
 	}
 	if (!up && !down) {
 		ball.accelerationVector.y = 0;
@@ -257,6 +298,9 @@ function ballsPenetrationResolution(ball1, ball2) {
 		.unit()
 		.multiply(penetrationDepth / (ball1.inverseMass + ball2.inverseMass));
 
+	if (distancie.magnitude() === 0) {
+		ball1.position.x += 1;
+	}
 	ball1.position = ball1.position.add(
 		penetrationResolution.multiply(ball1.inverseMass)
 	);
@@ -311,6 +355,13 @@ function update() {
 			controller(ball);
 		}
 
+		// context.fillStyle = 'white';
+		// context.fillText(
+		// 	ball.accelerationVector.x + ' ' + ball.accelerationVector.y,
+		// 	ball.position.x,
+		// 	ball.position.y - ball.radius * 1.2
+		// );
+
 		wallsArray.forEach((wall) => {
 			if (ballCollisionWithWall(ballsArray[index], wall)) {
 				wallPenetrationResolution(ballsArray[index], wall);
@@ -332,6 +383,11 @@ function update() {
 
 	// momentumDisplay();
 
+	context.fillStyle = 'white';
+	context.font = 'bold 12px verdana, sans-serif';
+	context.fillText('Left click(2 clicks): Creates wall', 10, 20);
+	context.fillText('Right click: Creates ball', 10, 40);
+
 	wallsArray.forEach((wall, index) => {
 		wall.drawWall();
 	});
@@ -343,14 +399,11 @@ for (let i = 0; i < 10; i++) {
 	let newBall = new Ball(
 		randomInt(100, 700),
 		randomInt(100, 700),
-		randomInt(20, 50),
+		randomInt(20, 40),
 		randomInt(0, 10)
 	);
 	newBall.elasticity = randomInt(0, 10) / 10;
 }
-
-let wall1 = new Wall(200, 200, 500, 500);
-let wall2 = new Wall(500, 500, 800, 500);
 
 let edgeLeft = new Wall(0, 0, 0, canvas.clientHeight);
 let edgeRight = new Wall(
