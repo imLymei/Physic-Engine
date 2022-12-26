@@ -387,6 +387,7 @@ function update() {
 	context.font = 'bold 12px verdana, sans-serif';
 	context.fillText('Left click(2 clicks): Creates wall', 10, 20);
 	context.fillText('Right click: Creates ball', 10, 40);
+	context.fillText('Use arrows keys to move your main ball', 10, 60);
 
 	wallsArray.forEach((wall, index) => {
 		wall.drawWall();
@@ -421,5 +422,8 @@ let edgeBottom = new Wall(
 );
 
 ballsArray[0].player = true;
+if (ballsArray[0].mass == 0) {
+	ballsArray[0].mass = randomInt(1, 10);
+}
 
 update();
