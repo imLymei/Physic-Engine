@@ -9,6 +9,6 @@ Left click(2 clicks) in the canvas to create a wall.
 
 ## 🚀 How to use it?
 
-Open with LiveServer our simply open index.html!
+Open with LiveServer our simply open index.html.
 
 ###### Create by [Felipe Cardoso](https://lymei.art)
